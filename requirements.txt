@@ -1,0 +1,9 @@
+# 极简推理依赖（不含导出/量化/GUI）
+gguf>=0.19.0
+numpy>=2.5.2
+scipy>=1.18.1
+soundfile>=0.14.0
+tokenizers>=0.22
+# ONNX 运行时：默认 CPU；Windows 想用 GPU 可换 onnxruntime-directml
+onnxruntime>=1.24.4
+# onnxruntime-directml>=1.24.4
