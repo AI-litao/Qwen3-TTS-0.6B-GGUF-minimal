@@ -50,13 +50,17 @@ decoder/codec_encoder/speaker_encoder onnx、`embeddings/`、`tokenizer.json`）
 示范就是坏的，生成会失控。台词可以用户填写、ASR 转写，或用
 `--zero-shot` 走免台词弱克隆（只用声纹向量，稳定但相似度上限低）。
 
-## 已知坑
+## 注意事项
 
-- **talker 文件名硬编码**：引擎固定读 `qwen3_tts_talker.q5_k.gguf`，
-  套件里若是 `q4_0` 等其他档位，`render.py` 会自动在模型包旁建
-  `<包名>_vdir` 别名目录（软链/硬链，不复制大文件）。手动调引擎
-  API 时注意同样处理。
-- **两套模型包组件不可混用**（不同底模的训练产物，跨包复制必坏）。
+- **talker 固定文件名**：引擎按 `qwen3_tts_talker.q5_k.gguf` 读取
+  talker（文件名约定来自上游 HaujetZhao/Qwen3-TTS-GGUF 的
+  `engine.py` 路径定义，本仓库未改动此处）。文件名是约定，量化
+  格式不是——GGUF 自描述，内容为 q4_0 等其他档位照常加载，用
+  软链对齐文件名即可，不影响效果。套件里若是其他档位文件名，
+  `render.py` 会自动在模型包旁建 `<包名>_vdir` 别名目录（软链/
+  硬链，不复制大文件）；手动调引擎 API 时同样处理。
+- **模型包组件请勿跨包混用**：不同底模变体的训练产物不同，
+  跨包混用组件无法正常工作。
 - 编码器保持上游 fp16 原版：int8 量化的 codes 一致率仅 10%，等于换内容。
 
 ## 与上游的差异（本仓库改动清单）
@@ -64,8 +68,8 @@ decoder/codec_encoder/speaker_encoder onnx、`embeddings/`、`tokenizer.json`）
 - `qwen3_tts_gguf/inference/assets.py`：embeddings 加载支持 int8 表 +
   scale，fp16 存储的 codec 表加载时上采 float32。
 - `qwen3_tts_gguf/inference/encoder.py`：codec_encoder 输入按 960 样本
-  对齐补零——上游 ONNX 图对任意长度音频会 Reshape 报错（图内
-  ceil/floor 差一帧），引擎自产音频恰好不触发，真实录音必触发。
+  对齐补零——上游 ONNX 图对任意长度音频会触发 Reshape 错误
+  （图内 ceil/floor 差一帧），引擎自产音频不触发，真实录音会触发。
 
 ## License
 
