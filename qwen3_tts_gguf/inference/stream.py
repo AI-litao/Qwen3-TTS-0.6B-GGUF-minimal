@@ -117,7 +117,8 @@ class TTSStream:
         Args:
             text: 待合成的目标文本。
             speaker: 说话人名 (str)、ID (int) 或 嵌入 (np.ndarray)。
-                - 字符串名: ['Vivian', 'Serena', 'Ono_Anna', 'Sohee', 'Ryan', 'Aiden', 'Uncle_Fu', 'Eric', 'Dylan']
+                - 字符串名: ['Vivian', 'Serena', 'Ono_Anna', 'Sohee', 'Ryan', 'Aiden', 'Uncle_Fu', 'Dylan']
+                  （仅 CustomVoice 模型包支持；Base 包 spk_id 未训练，点名音色会音色混乱）
                 - 数字 ID: 2800-3071
                 - 嵌入矩阵: np.ndarray (D,)
             language: 目标语言。可选:

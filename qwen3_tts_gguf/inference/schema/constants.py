@@ -11,8 +11,7 @@ SPEAKER_MAP = {
     "ryan": 3061,
     "aiden": 2861, 
     "ono_anna": 2873, 
-    "sohee": 2864, 
-    "eric": 2875, 
+    "sohee": 2864,
     "dylan": 2878
 }
 

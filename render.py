@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Qwen3-TTS-GGUF 极简渲染入口：文本 → wav。
 
-两种模式（二选一）：
-  内置音色:  python render.py --model-dir <模型包> --text "你好" --speaker Vivian
-  声音克隆:  python render.py --model-dir <模型包> --text "你好" \
+两种模式（二选一，各配各的模型包）：
+  内置音色:  python render.py --model-dir <CustomVoice包> --text "你好" --speaker Vivian
+  声音克隆:  python render.py --model-dir <Base克隆包> --text "你好" \
                  --voice-wav ref.wav --ref-text "参考音频里说的原话"
 
 模型包 = Qwen3-TTS-0.6B GGUF 转换套件目录（含 talker/predictor gguf、
-decoder/编码器 onnx、embeddings/、tokenizer.json）。
+decoder onnx、embeddings/、tokenizer.json；克隆包另含 codec/speaker
+编码器 onnx）。点名音色包没有克隆编码器也能跑 --speaker。
 """
 import argparse
 import glob
@@ -20,9 +21,12 @@ NEEDED = [
     ("qwen3_tts_talker.q5_k.gguf", "qwen3_tts_talker"),
     ("qwen3_tts_predictor.q8_0.gguf", "qwen3_tts_predictor"),
     ("qwen3_tts_decoder.fp16.onnx", "qwen3_tts_decoder"),
+    ("tokenizer.json", "tokenizer"),
+]
+# 克隆双编码器：只有克隆包（Base）带，仅 --voice-wav 模式需要
+CLONE_NEEDED = [
     ("qwen3_tts_codec_encoder.fp16.onnx", "qwen3_tts_codec_encoder"),
     ("qwen3_tts_speaker_encoder.fp16.onnx", "qwen3_tts_speaker_encoder"),
-    ("tokenizer.json", "tokenizer"),
 ]
 
 
@@ -39,15 +43,17 @@ def link(src, dst):
     shutil.copy2(src, dst)
 
 
-def ensure_model_dir(model_dir):
+def ensure_model_dir(model_dir, need_clone=False):
     """引擎硬编码 talker 文件名 q5_k（历史原因），套件里常是 q4_0 等。
-    缺名时在模型包旁建 <包名>_vdir 别名目录（软链/硬链，不复制大文件）。"""
-    missing = [(n, s) for n, s in NEEDED if not os.path.exists(os.path.join(model_dir, n))]
+    缺名时在模型包旁建 <包名>_vdir 别名目录（软链/硬链，不复制大文件）。
+    克隆双编码器仅 need_clone（--voice-wav）时要求存在。"""
+    wanted = NEEDED + (CLONE_NEEDED if need_clone else [])
+    missing = [(n, s) for n, s in wanted if not os.path.exists(os.path.join(model_dir, n))]
     if not missing and os.path.isdir(os.path.join(model_dir, "embeddings")):
         return model_dir
     vdir = model_dir.rstrip("/\\") + "_vdir"
     os.makedirs(vdir, exist_ok=True)
-    for name, stem in NEEDED:
+    for name, stem in wanted:
         dst = os.path.join(vdir, name)
         if os.path.exists(dst):
             continue
@@ -57,7 +63,11 @@ def ensure_model_dir(model_dir):
         cands = sorted(glob.glob(os.path.join(model_dir, stem + "*")))
         cands = [c for c in cands if os.path.isfile(c)]
         if not cands:
-            sys.exit(f"错误：模型包里找不到 {stem}*（需要 {name}）")
+            hint = ""
+            if need_clone and (name, stem) in CLONE_NEEDED:
+                hint = ("；克隆需要 codec/speaker 双编码器，请用克隆包"
+                        "（如 Qwen3-TTS-0.6B-GGUF-Lunavox-int8emb）")
+            sys.exit(f"错误：模型包里找不到 {stem}*（需要 {name}）{hint}")
         link(cands[0], dst)
         print(f"[vdir] {name} -> {os.path.basename(cands[0])}")
     emb = os.path.join(vdir, "embeddings")
@@ -90,7 +100,8 @@ def main():
         sys.exit("错误：克隆需要 --ref-text（参考音频原话转写）；"
                  "或用 --zero-shot 走免台词弱克隆")
 
-    vdir = ensure_model_dir(os.path.abspath(args.model_dir))
+    vdir = ensure_model_dir(os.path.abspath(args.model_dir),
+                            need_clone=bool(args.voice_wav))
 
     from qwen3_tts_gguf.inference import TTSEngine, TTSConfig
 

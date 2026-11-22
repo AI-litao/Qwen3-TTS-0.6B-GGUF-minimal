@@ -1,7 +1,16 @@
 # Qwen3-TTS-GGUF minimal
 
-Qwen3-TTS-0.6B 的 GGUF 推理引擎极简封装：一条命令把文本合成成 wav，
-支持内置音色与声音克隆（参考音频 + 台词转写）。
+Qwen3-TTS-0.6B 的 GGUF 推理引擎极简封装：一条命令把文本合成成 wav。
+两个场景各配一个模型包，**按场景选包**：
+
+| 场景 | 模型包（魔搭） | 用法 |
+|---|---|---|
+| **内置点名音色** | [Qwen3-TTS-0.6B-GGUF-nzyaltair-int8emb](https://modelscope.cn/models/ArchitectLi/Qwen3-TTS-0.6B-GGUF-nzyaltair-int8emb)（CustomVoice） | `--speaker 音色名` |
+| **声音克隆** | [Qwen3-TTS-0.6B-GGUF-Lunavox-int8emb](https://modelscope.cn/models/ArchitectLi/Qwen3-TTS-0.6B-GGUF-Lunavox-int8emb)（Base，含双编码器） | `--voice-wav` + `--ref-text` |
+
+两包底模不同（CustomVoice vs Base），**不能混着用**：点名音色是
+CustomVoice 变体的功能，拿 Base 包跑 `--speaker` 会音色混乱；克隆
+需要包内带 codec/speaker 双编码器，只有 Lunavox 包带。
 
 基于 [HaujetZhao/Qwen3-TTS-GGUF](https://github.com/HaujetZhao/Qwen3-TTS-GGUF)
 （MIT License，Copyright (c) 2026 HaujetZhao）裁剪而来，只保留运行时
@@ -13,30 +22,34 @@ Qwen3-TTS-0.6B 的 GGUF 推理引擎极简封装：一条命令把文本合成�
 ```bash
 pip install -r requirements.txt
 
-# 内置音色
-python render.py --model-dir <模型包目录> --text "今天天气真不错。" --speaker Vivian
+# 内置音色（用 nzyaltair/CustomVoice 模型包）
+python render.py --model-dir <nzyaltair包目录> --text "今天天气真不错。" --speaker Vivian
 
-# 声音克隆（参考音频原话转写必须逐字覆盖参考音频）
-python render.py --model-dir <模型包目录> --text "今天天气真不错。" \
+# 声音克隆（用 Lunavox/Base 模型包；参考音频原话转写必须逐字覆盖参考音频）
+python render.py --model-dir <Lunavox包目录> --text "今天天气真不错。" \
     --voice-wav ref.wav --ref-text "参考音频里那个人说的原话"
 ```
 
-内置音色：`Vivian` `Serena` `Ono_Anna` `Sohee` `Ryan` `Aiden`
-`Uncle_Fu` `Eric` `Dylan`（也可用说话人 ID 2800-3071）。
+内置音色（8 个，仅 CustomVoice 包）：`Vivian` `Serena` `Ono_Anna`
+`Sohee` `Ryan` `Aiden` `Uncle_Fu` `Dylan`（也可用说话人 ID
+2800-3071，其中 2875 实测坏行请避开）。
 `--instruct` 支持自然语言渲染指令（如"用温柔的语气说"）。
 `--language` 支持 chinese/english/japanese/korean 等语种与方言。
 
 ## 模型包
 
 需要 Qwen3-TTS-0.6B 的 GGUF 转换套件目录（talker/predictor gguf、
-decoder/codec_encoder/speaker_encoder onnx、`embeddings/`、`tokenizer.json`）。
-转换方法见原上游仓库的 1x/2x 号导出脚本；量化说明与实验记录随模型包
-发布（ModelScope）。
+decoder onnx、`embeddings/`、tokenizer.json；克隆场景另需
+codec_encoder/speaker_encoder onnx）。转换方法见原上游仓库的 1x/2x
+号导出脚本；量化说明与实验记录随模型包发布（ModelScope）。
 
-推荐直接用我们发布的量化模型包
-[Qwen3-TTS-0.6B-GGUF-Lunavox-int8emb](https://modelscope.cn/models/ArchitectLi/Qwen3-TTS-0.6B-GGUF-Lunavox-int8emb)
-（含语音克隆双编码器 codec_encoder/speaker_encoder，量化说明与
-实测结论见模型卡）。
+推荐直接用我们发布的量化模型包（见上表）：
+
+- [Qwen3-TTS-0.6B-GGUF-nzyaltair-int8emb](https://modelscope.cn/models/ArchitectLi/Qwen3-TTS-0.6B-GGUF-nzyaltair-int8emb)
+  ——CustomVoice，内置 8 音色，含 embeddings int8 量化说明。
+- [Qwen3-TTS-0.6B-GGUF-Lunavox-int8emb](https://modelscope.cn/models/ArchitectLi/Qwen3-TTS-0.6B-GGUF-Lunavox-int8emb)
+  ——Base，克隆专用（含语音克隆双编码器 codec_encoder/speaker_encoder），
+  量化说明与实测结论见模型卡。
 
 ## 声音克隆须知（实测结论）
 
@@ -60,8 +73,12 @@ decoder/codec_encoder/speaker_encoder onnx、`embeddings/`、`tokenizer.json`）
   `render.py` 会自动在模型包旁建 `<包名>_vdir` 别名目录（软链/
   硬链，不复制大文件）；手动调引擎 API 时同样处理。
 - **模型包组件请勿跨包混用**：不同底模变体的训练产物不同，
-  跨包混用组件无法正常工作。
+  跨包混用组件无法正常工作。**点名音色只用 CustomVoice 包，克隆
+  只用 Base 包**——用错变体（Base 跑点名音色）就是"换句台词音色
+  乱变"的根源。
 - 编码器保持上游 fp16 原版：int8 量化的 codes 一致率仅 10%，等于换内容。
+  embeddings 表同理有精度红线：text 表可 int8（已随包量化），codec/
+  音色表必须 fp16（int8 实测翻性别）。
 
 ## 与上游的差异（本仓库改动清单）
 
@@ -70,6 +87,10 @@ decoder/codec_encoder/speaker_encoder onnx、`embeddings/`、`tokenizer.json`）
 - `qwen3_tts_gguf/inference/encoder.py`：codec_encoder 输入按 960 样本
   对齐补零——上游 ONNX 图对任意长度音频会触发 Reshape 错误
   （图内 ceil/floor 差一帧），引擎自产音频不触发，真实录音会触发。
+- `render.py`：克隆双编码器（codec/speaker encoder）改为仅克隆模式
+  必需——点名音色包没有这两个文件也能跑 `--speaker`。
+- `qwen3_tts_gguf/inference/schema/constants.py`：内置音色表删去
+  Eric（2875，实测单行坏数据），保留 8 音色。
 
 ## License
 
